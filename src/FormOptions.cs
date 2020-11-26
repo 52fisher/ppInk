@@ -672,6 +672,11 @@ namespace gInk
                 Root.VideoRecordMode = (VideoRecordMode)Int32.Parse((string)(sender as Control).Tag);
         }
 
+        private void pictureBox1_Click(object sender, EventArgs e)
+        {
+
+        }
+
         private void cbAllowHotkeyInPointer_CheckedChanged(object sender, EventArgs e)
 		{
 			Root.AllowHotkeyInPointerMode = cbAllowHotkeyInPointer.Checked;
