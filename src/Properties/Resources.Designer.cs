@@ -93,6 +93,16 @@ namespace gInk.Properties {
         /// <summary>
         ///   查找类似于 (图标) 的 System.Drawing.Icon 类型的本地化资源。
         /// </summary>
+        public static System.Drawing.Icon cursoreraser {
+            get {
+                object obj = ResourceManager.GetObject("cursoreraser", resourceCulture);
+                return ((System.Drawing.Icon)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Recherche une ressource localisée de type System.Drawing.Icon semblable à (Icône).
+        /// </summary>
         public static System.Drawing.Icon cursorred {
             get {
                 object obj = ResourceManager.GetObject("cursorred", resourceCulture);

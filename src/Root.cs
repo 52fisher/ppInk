@@ -16,7 +16,7 @@ using System.Net.WebSockets;
 namespace gInk
 {
     public enum VideoRecordMode {NoVideo=0 , OBSRec=1 , OBSBcst=2 , FfmpegRec=3 };
-    public enum VideoRecInProgress { Stopped=0, Starting=1, Recording=2, Stopping = 3, Pausing=4, Paused=5, Resuming=6 };
+    public enum VideoRecInProgress { Stopped=0, Starting=1, Recording=2, Stopping = 3, Pausing=4, Paused=5, Resuming=6, Streaming = 7 };
 
     public class TestMessageFilter : IMessageFilter
 	{
@@ -83,6 +83,7 @@ namespace gInk
         public bool ToolsEnabled = true;
         public bool EraserEnabled = true;
         public bool PointerEnabled = true;
+        public bool AltTabPointer = false;
         public bool PenWidthEnabled = false;
         public bool WidthAtPenSel = true;
         public bool SnapEnabled = true;
@@ -525,10 +526,10 @@ namespace gInk
 			if (PointerMode == false)
 				return;
 
-			PointerMode = false;
 			FormCollection.ToUnThrough();
 			FormCollection.ToTopMost();
 			FormCollection.Activate();
+			PointerMode = false;
 
 			FormButtonHitter.Hide();
 		}
@@ -860,7 +861,13 @@ namespace gInk
 						case "POINTER_ICON":
 							if (sPara.ToUpper() == "FALSE" || sPara == "0" || sPara.ToUpper() == "OFF")
 								PointerEnabled = false;
-							break;
+                            break;
+                        case "ALTTAB_POINTER":
+                            if (sPara.ToUpper() == "TRUE" || sPara == "1" || sPara.ToUpper() == "ON")
+                                AltTabPointer = true;
+                            else
+                                AltTabPointer = false;
+                            break;
                         case "PEN_WIDTH_AT_SELECTION":
                             if (sPara.ToUpper() == "FALSE" || sPara == "0" || sPara.ToUpper() == "OFF")
                                 WidthAtPenSel = false;
@@ -1184,6 +1191,9 @@ namespace gInk
 							else
 								sPara = "False";
 							break;
+                        case "ALTTAB_POINTER":
+                            sPara = AltTabPointer?"True":"False";
+                            break;
                         case "PEN_WIDTH_AT_SELECTION":
                             sPara = WidthAtPenSel ? "True" : "False";
                             break;

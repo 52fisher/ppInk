@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Text;
 using System.Security.Cryptography;
+using System.Reflection;
 
 namespace gInk
 {
@@ -28,6 +29,23 @@ namespace gInk
         }
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool RegisterTouchWindow(IntPtr hWnd, RegisterTouchFlags flags);
+
+        // to load correctly customed cursor file
+        static class MyNativeMethods
+        {
+            public static System.Windows.Forms.Cursor LoadCustomCursor(string path)
+            {
+                IntPtr hCurs = LoadCursorFromFile(path);
+                if (hCurs == IntPtr.Zero) throw new Win32Exception();
+                var curs = new System.Windows.Forms.Cursor(hCurs);
+                // Note: force the cursor to own the handle so it gets released properly
+                //var fi = typeof(System.Windows.Forms.Cursor).GetField("ownHandle", BindingFlags.NonPublic | BindingFlags.Instance);
+                //fi.SetValue(curs, true);
+                return curs;
+            }
+            [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+            private static extern IntPtr LoadCursorFromFile(string path);
+        }
 
         // hotkeys
         const int VK_LCONTROL = 0xA2;
@@ -51,7 +69,7 @@ namespace gInk
 		public Bitmap[] image_pen_act;
         public Bitmap image_eraser_act, image_eraser;
 		public Bitmap image_visible_not, image_visible;
-		public System.Windows.Forms.Cursor cursorred, cursorsnap;
+		public System.Windows.Forms.Cursor cursorred, cursorsnap,cursorerase;
 		public System.Windows.Forms.Cursor cursortip;
         public System.Windows.Forms.Cursor tempArrowCursor=null;
 
@@ -388,7 +406,7 @@ namespace gInk
                         Task.Delay(50);
                     Task.Delay(100);
                     //Task.Run(() => SendInWs(Root.ObsWs, "GetRecordingStatus", new CancellationToken()));
-                    //Task.Run(() => SendInWs(Root.ObsWs, "GetStreamingStatus", new CancellationToken()));
+                    Task.Run(() => SendInWs(Root.ObsWs, "GetStreamingStatus", new CancellationToken()));
                 }
                 cumulatedleft += (int)(btClear.Width * 1.1);
             }
@@ -468,11 +486,26 @@ namespace gInk
             IC.DefaultDrawingAttributes.AntiAliased = true;
             IC.DefaultDrawingAttributes.FitToCurve = true;
 
-            string icon_filename= Root.ProgramFolder + Path.DirectorySeparatorChar + "cursor.ico";
-            if (File.Exists(icon_filename)) 
-                cursorred = new System.Windows.Forms.Cursor(icon_filename);
+            string icon_filename= Root.ProgramFolder + Path.DirectorySeparatorChar + "cursor";
+            if (File.Exists(icon_filename+".cur")) 
+                cursorred = MyNativeMethods.LoadCustomCursor(icon_filename+".cur");
+            else if (File.Exists(icon_filename + ".ani"))
+                cursorred = MyNativeMethods.LoadCustomCursor(icon_filename + ".ani");
+            else if (File.Exists(icon_filename + ".ico"))
+                cursorred = new System.Windows.Forms.Cursor(icon_filename+".ico");
             else
                 cursorred = new System.Windows.Forms.Cursor(gInk.Properties.Resources.cursorred.Handle);
+
+            icon_filename = Root.ProgramFolder + Path.DirectorySeparatorChar + "eraser";
+            if (File.Exists(icon_filename + ".cur"))
+                cursorerase = MyNativeMethods.LoadCustomCursor(icon_filename + ".cur");
+            else if (File.Exists(icon_filename + ".ani"))
+                cursorerase = MyNativeMethods.LoadCustomCursor(icon_filename + ".ani");
+            else if (File.Exists(icon_filename + ".ico"))
+                cursorerase = new System.Windows.Forms.Cursor(icon_filename + ".ico");
+            else
+                cursorerase = new System.Windows.Forms.Cursor(gInk.Properties.Resources.cursoreraser.Handle);
+
             IC.Enabled = true;
 
             image_exit = new Bitmap(btStop.Width, btStop.Height);
@@ -618,6 +651,8 @@ namespace gInk
                 btVideo.BackgroundImage = global::gInk.Properties.Resources.VidStop;
             else if (Root.VideoRecInProgress == VideoRecInProgress.Recording)
                 btVideo.BackgroundImage = global::gInk.Properties.Resources.VidRecord;
+            else if (Root.VideoRecInProgress == VideoRecInProgress.Streaming)
+                btVideo.BackgroundImage = global::gInk.Properties.Resources.VidBroadcast;
             else if (Root.VideoRecInProgress == VideoRecInProgress.Paused)
                 btVideo.BackgroundImage = global::gInk.Properties.Resources.VidPause;
             else
@@ -1587,10 +1622,10 @@ namespace gInk
                     SavedPen = LastPenSelected;
                 }
                 SelectTool(-1,0);       // Alt will be processed inhere
-                if (this.Cursor != System.Windows.Forms.Cursors.Default)
-					this.Cursor = System.Windows.Forms.Cursors.Default;
-
-				for (int b = 0; b < Root.MaxPenCount; b++)
+                //if (this.Cursor != System.Windows.Forms.Cursors.Default)
+				//	this.Cursor = System.Windows.Forms.Cursors.Default;
+                
+                for (int b = 0; b < Root.MaxPenCount; b++)
 					btPen[b].Image = image_pen[b];
 				btEraser.Image = image_eraser_act;
 				btPointer.Image = image_pointer;
@@ -1598,13 +1633,7 @@ namespace gInk
 				Root.UnPointer();
 				Root.PanMode = false;
 
-				if (Root.CanvasCursor == 0)
-				{
-					//cursorred = new System.Windows.Forms.Cursor(gInk.Properties.Resources.cursorred.Handle);
-					IC.Cursor = cursorred;
-				}
-				else if (Root.CanvasCursor == 1)
-					SetPenTipCursor();
+				IC.Cursor = cursorerase;
 
 				try
 				{
@@ -2792,17 +2821,27 @@ namespace gInk
                     frm.Root.VideoRecInProgress = VideoRecInProgress.Stopped;
                 else if (st.Contains("\"RecordingPaused\""))
                     frm.Root.VideoRecInProgress = VideoRecInProgress.Paused;
+                else if (st.Contains("StreamStopping"))
+                    frm.Root.VideoRecInProgress = VideoRecInProgress.Stopped;
+                else if (st.Contains("StreamStarted"))
+                    frm.Root.VideoRecInProgress = VideoRecInProgress.Streaming;
                 else if (st.Contains("\"RecordingStarted\"") || st.Contains("\"RecordingResumed\""))
                     frm.Root.VideoRecInProgress = VideoRecInProgress.Recording;
                 // cases from getInitialStatus;
-                else if (st.Contains("\"recording - paused\": true"))
+                else if (st.Contains("\"recording - paused\": true") || st.Contains("\"recording-paused\": true") || st.Contains("\"isRecordingPaused\": true"))
                     frm.Root.VideoRecInProgress = VideoRecInProgress.Paused;
-                else if (st.Contains("\"recording\": true"))
+                else if (st.Contains("\"recording\": true") || st.Contains("\"isRecording\": true"))
                     frm.Root.VideoRecInProgress = VideoRecInProgress.Recording;
-                else if (st.Contains("\"recording\": false"))
+                else if (st.Contains("\"streaming\": true"))
+                    frm.Root.VideoRecInProgress = VideoRecInProgress.Streaming;
+                else if (st.Contains("\"recording\": false") || st.Contains("\"isRecording\": false") || st.Contains("\"streaming\": false"))
                     frm.Root.VideoRecInProgress = VideoRecInProgress.Stopped;
-                Console.WriteLine("vidbg " + frm.Root.VideoRecInProgress.ToString());
                 frm.SetVidBgImage();
+                Console.WriteLine("vidbg " + frm.Root.VideoRecInProgress.ToString());
+                // for unknown reasons, button update seems unreliable : robustify repeating update after 100ms
+                Thread.Sleep(100);
+                frm.SetVidBgImage();
+                //Console.WriteLine(frm.btVideo.BackgroundImage.ToString()+" vidbg2 " + frm.Root.UponButtonsUpdate);
             }
             frm.btVideo.BackgroundImage = global::gInk.Properties.Resources.VidDead; // the recv task is dead so we put the cross;
             Console.WriteLine("endoft");
@@ -2915,6 +2954,16 @@ namespace gInk
             ToUnThrough();
             if (inp.TextOut().Length == 0) return;
             Root.TagNumbering = k;
+        }
+
+
+        private void FormCollection_Deactivate(object sender, EventArgs e)
+        {
+            if (!Root.AltTabPointer)
+                return;
+            Console.WriteLine("desactivating ");
+            if((!Root.PointerMode)&&(ButtonsEntering==0))
+                SelectPen(-2);
         }
 
         private void FontBtn_Modify()
